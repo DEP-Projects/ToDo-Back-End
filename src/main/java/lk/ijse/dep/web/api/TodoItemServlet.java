@@ -165,19 +165,29 @@ public class TodoItemServlet extends HttpServlet {
             }
             BasicDataSource cp = (BasicDataSource) getServletContext().getAttribute("cp");
             try (Connection connection = cp.getConnection()) {
-                PreparedStatement pstm = connection.prepareStatement("SELECT * FROM `user` WHERE username=?");
-                pstm.setObject(1, item.getUsername());
+                int id = Integer.parseInt(req.getPathInfo().replace("/", ""));
+                PreparedStatement pstm = connection.prepareStatement("SELECT * FROM `user` WHERE id=? AND username=?");
+                pstm.setObject(1, id);
+                pstm.setObject(2,req.getAttribute("user"));
                 if (!pstm.executeQuery().next()) {
-                    resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                    resp.setContentType("text/plain");
-                    resp.getWriter().println("invalid user");
-                    return;
+                    resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+                }else{
+                   pstm = connection.prepareStatement("UPDATE todo_item SET text=?,priority=?,status=? WHERE id=?");
+                   pstm.setObject(1,item.getText());
+                   pstm.setObject(2,item.getPriority().toString());
+                   pstm.setObject(3,item.getStatus().toString());
+                   pstm.setObject(4,id);
+                   boolean success= pstm.executeUpdate() > 0;
+                   if (success){
+                       resp.sendError(HttpServletResponse.SC_NO_CONTENT);
+                   }else{
+                       resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                   }
                 }
-
-
-            } catch (SQLException throwables) {
-                throwables.printStackTrace();
             }
+            }catch (SQLException throwables) {
+            resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            throwables.printStackTrace();
         }
     }
 }
