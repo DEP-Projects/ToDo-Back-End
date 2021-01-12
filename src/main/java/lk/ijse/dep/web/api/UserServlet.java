@@ -88,4 +88,40 @@ public class UserServlet extends HttpServlet {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST);
         }
     }
+
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        BasicDataSource cp = (BasicDataSource) getServletContext().getAttribute("cp");
+        Jsonb jsonb = JsonbBuilder.create();
+        UserDTO userDTO = jsonb.fromJson(req.getReader(), UserDTO.class);
+        try (Connection connection = cp.getConnection()) {
+            int id = Integer.parseInt(req.getPathInfo().replace("/", ""));
+            PreparedStatement pstm = connection.prepareStatement("SELECT * FROM `user` WHERE username=?");
+            pstm.setObject(1, req.getAttribute("user"));
+            ResultSet rst = pstm.executeQuery();
+            if (!rst.next()) {
+                resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            } else {
+                String sha256Hex = DigestUtils.sha256Hex(userDTO.getPassword());
+                if (sha256Hex.equals(rst.getString("password"))) {
+                    pstm = connection.prepareStatement("DELETE FROM `user` WHERE username=?");
+                    pstm.setObject(1, req.getAttribute("user"));
+                    Boolean success = pstm.executeUpdate() > 0;
+                    if (success) {
+                        resp.sendError(HttpServletResponse.SC_NO_CONTENT);
+                    } else {
+                        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                    }
+                }else{
+                resp.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                }
+            }
+
+        } catch (NumberFormatException e) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            e.printStackTrace();
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+    }
 }
